@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COUNTDOWN</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: #030308;
+    font-family: 'Share Tech Mono', monospace;
+    color: #fff;
+    overflow-x: hidden;
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #050510; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+  @keyframes scanline { 0%{transform:translateY(-100%);} 100%{transform:translateY(100vh);} }
+  @keyframes bounce { from{transform:translateY(0);} to{transform:translateY(-10px);} }
+  @keyframes cardPulse { from{box-shadow:var(--pulse-from);} to{box-shadow:var(--pulse-to);} }
+  @keyframes urgentPulse { from{opacity:1;} to{opacity:0.55;} }
+
+  #scanline {
+    position: fixed; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(transparent, rgba(255,255,255,0.03), transparent);
+    animation: scanline 8s linear infinite;
+    pointer-events: none; z-index: 999;
+  }
+
+  #app { padding: 36px 20px 60px; position: relative; }
+
+  .header { text-align: center; margin-bottom: 52px; }
+  .header-sub { font-size: 9px; letter-spacing: 6px; color: #2a2a3a; margin-bottom: 8px; }
+  .header-title {
+    font-size: 42px; font-weight: 400; letter-spacing: 8px;
+    background: linear-gradient(90deg,#ff4d00,#ff9500,#ffcc00,#00ff88,#00c8ff,#c061f7);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header-deco { margin-top: 6px; font-size: 9px; letter-spacing: 4px; color: #1a1a2a; }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px; max-width: 1000px; margin: 0 auto;
+  }
+
+  #empty { text-align: center; margin-top: 80px; display: none; }
+  #empty .empty-icon { font-size: 52px; margin-bottom: 12px; }
+  #empty .empty-text { font-size: 11px; letter-spacing: 4px; color: #1e1e2e; }
+
+  .add-btn-wrap { text-align: center; margin-top: 44px; }
+  #addBtn {
+    background: transparent; border: 1px solid #2a2a3a; border-radius: 12px;
+    color: #444; padding: 14px 36px; cursor: pointer;
+    font-family: 'Share Tech Mono', monospace; font-size: 13px; letter-spacing: 3px;
+    transition: all 0.3s;
+  }
+  #addBtn:hover {
+    border-color: #ff9500; color: #ff9500;
+    box-shadow: 0 0 20px #ff950044; background: #ff950011;
+  }
+
+  /* ── KART ── */
+  .card {
+    border-radius: 20px; padding: 24px 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    position: relative; overflow: hidden;
+    transition: box-shadow 0.5s;
+  }
+  .card-grid-bg {
+    position: absolute; inset: 0; opacity: 0.04; border-radius: 20px;
+    pointer-events: none;
+    background-image: var(--grid-img); background-size: 20px 20px;
+  }
+  .card-tag {
+    position: absolute; top: 14px; left: 16px;
+    font-size: 8px; letter-spacing: 3px; color: var(--glow); opacity: 0.35;
+  }
+  .card-delete {
+    position: absolute; top: 12px; right: 12px;
+    background: none; border: none; cursor: pointer;
+    color: var(--glow); opacity: 0.2; font-size: 14px;
+    padding: 4px; transition: opacity 0.2s; z-index: 2;
+  }
+  .card-delete:hover { opacity: 1; }
+  .card-label {
+    background: none; border: none; outline: none;
+    color: var(--glow); opacity: 0.8;
+    font-size: 12px; text-align: center;
+    font-family: 'Share Tech Mono', monospace; letter-spacing: 2px;
+    width: 85%; border-bottom: 1px solid var(--glow);
+    border-bottom-opacity: 0.2; padding-bottom: 4px; margin-top: 14px;
+  }
+  .card-label::placeholder { color: var(--glow); opacity: 0.3; }
+
+  /* Dijital sayaç */
+  .digits { display: flex; align-items: center; gap: 6px; padding: 10px 0; }
+  .digit-block { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .digit-num {
+    font-family: 'Share Tech Mono', monospace; font-weight: 400; line-height: 1;
+    letter-spacing: 2px; transition: all 0.15s;
+    color: var(--glow);
+    text-shadow: 0 0 20px var(--glow), 0 0 40px var(--glow);
+  }
+  .digit-num.big { font-size: 52px; }
+  .digit-num.small { font-size: 36px; }
+  .digit-label { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 3px; color: var(--glow); opacity: 0.5; }
+  .colon {
+    font-family: 'Share Tech Mono', monospace; font-size: 44px; color: var(--glow);
+    line-height: 1; align-self: flex-start; margin-top: 4px;
+    transition: opacity 0.1s;
+  }
+
+  /* Progress bar */
+  .seg-bar { width: 100%; display: flex; gap: 3px; }
+  .seg { flex: 1; height: 5px; border-radius: 2px; transition: background 1s; }
+
+  /* Butonlar */
+  .card-btns { display: flex; gap: 8px; width: 100%; }
+  .btn-start {
+    flex: 1; border-radius: 10px; padding: 10px;
+    cursor: pointer; font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; letter-spacing: 1px; transition: all 0.2s;
+  }
+  .btn-reset {
+    background: transparent; border-radius: 10px; padding: 10px 14px;
+    cursor: pointer; font-family: 'Share Tech Mono', monospace;
+    font-size: 14px; transition: all 0.2s;
+    color: var(--glow); opacity: 0.5;
+    border: 1px solid var(--glow);
+    border-opacity: 0.2;
+  }
+  .btn-reset:hover { opacity: 1; }
+
+  /* Bitti ekranı */
+  .finished-display { text-align: center; padding: 20px 0; }
+  .finished-icon { font-size: 52px; animation: bounce 0.5s ease infinite alternate; display: block; }
+  .finished-text { font-size: 16px; letter-spacing: 3px; margin-top: 8px; color: var(--glow); }
+
+  /* Gün sayacı */
+  .day-big { text-align: center; }
+  .day-num {
+    font-family: 'Share Tech Mono', monospace; font-size: 72px; font-weight: 400;
+    line-height: 1; letter-spacing: 4px; color: var(--glow);
+  }
+  .day-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 4px; margin-top: 4px; color: var(--glow); opacity: 0.5; }
+  .date-str { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 2px; color: var(--glow); opacity: 0.35; }
+
+  /* Parçacık canvas */
+  .particles { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; border-radius: 20px; }
+
+  /* ── MODAL ── */
+  #modalOverlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.73); backdrop-filter: blur(8px);
+    align-items: center; justify-content: center; z-index: 100;
+  }
+  #modalOverlay.open { display: flex; }
+  #modal {
+    background: #08080f; border-radius: 20px; padding: 28px 24px;
+    width: 360px; display: flex; flex-direction: column; gap: 14px;
+    max-height: 92vh; overflow-y: auto;
+  }
+  .modal-title { font-size: 14px; letter-spacing: 3px; }
+  .theme-row { display: flex; gap: 6px; }
+  .theme-btn {
+    flex: 1; height: 30px; border-radius: 6px; cursor: pointer;
+    font-size: 14px; transition: all 0.2s; border: 1px solid #222; background: transparent;
+  }
+  .tab-row { display: flex; gap: 4px; background: #050510; border-radius: 10px; padding: 4px; }
+  .tab-btn {
+    flex: 1; padding: 9px 0; border: none; border-radius: 8px; cursor: pointer;
+    font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 1px; transition: all 0.2s;
+    background: transparent;
+  }
+  .modal-input {
+    background: #050510; border-radius: 8px; color: #fff;
+    padding: 10px 12px; font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; outline: none; width: 100%; letter-spacing: 1px;
+  }
+  .modal-input::placeholder { opacity: 0.4; }
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preset-btn {
+    background: transparent; border-radius: 8px; padding: 6px 12px;
+    cursor: pointer; font-size: 11px; font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 1px; transition: all 0.2s;
+  }
+  .modal-error { font-size: 11px; color: #ff4444; letter-spacing: 1px; }
+  .modal-btns { display: flex; gap: 8px; }
+  .modal-add {
+    flex: 1; border: none; border-radius: 10px; color: #000;
+    padding: 12px; cursor: pointer; font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; letter-spacing: 2px; font-weight: 700; transition: box-shadow 0.2s;
+  }
+  .modal-cancel {
+    background: transparent; border: 1px solid #222; border-radius: 10px;
+    color: #444; padding: 12px 16px; cursor: pointer;
+    font-family: 'Share Tech Mono', monospace; font-size: 13px;
+  }
+
+  /* Takvim */
+  #calBox { background: #050510; border-radius: 12px; padding: 12px 10px; }
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-nav {
+    background: none; border: none; cursor: pointer; font-size: 20px;
+    padding: 0 8px; transition: color 0.2s; font-family: monospace;
+  }
+  .cal-month-label { font-size: 12px; letter-spacing: 2px; }
+  .cal-days-head { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; margin-bottom: 6px; }
+  .cal-day-name { text-align: center; font-size: 8px; letter-spacing: 0.5px; opacity: 0.3; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+  .cal-day {
+    width: 100%; aspect-ratio: 1; border: none; border-radius: 6px;
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    transition: all 0.15s; cursor: pointer; background: transparent; color: #777;
+  }
+  .cal-day.past { color: #252535; cursor: default; pointer-events: none; }
+  .cal-day.empty { visibility: hidden; pointer-events: none; }
+  .time-row { display: flex; align-items: center; gap: 8px; }
+  .time-label { font-size: 10px; letter-spacing: 2px; opacity: 0.4; white-space: nowrap; }
+  .time-input { border-radius: 8px; text-align: center; padding: 8px 4px; width: 62px; }
+  .time-sep { font-size: 18px; }
+  #selDateDisplay { font-size: 11px; text-align: center; letter-spacing: 2px; display: none; }
+</style>
+</head>
+<body>
+
+<div id="scanline"></div>
+
+<div id="app">
+  <div class="header">
+    <div class="header-sub">[ ZAMAN YÖNETİM SİSTEMİ ]</div>
+    <h1 class="header-title">COUNTDOWN</h1>
+    <div class="header-deco">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓</div>
+  </div>
+
+  <div id="empty">
+    <div class="empty-icon">⏱</div>
+    <div class="empty-text">[ HENÜZ SAYAÇ YOK ]</div>
+  </div>
+
+  <div id="grid"></div>
+
+  <div class="add-btn-wrap">
+    <button id="addBtn">+ SAYAÇ EKLE</button>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modalOverlay">
+  <div id="modal">
+    <h2 class="modal-title" id="modalTitle">+ YENİ SAYAÇ</h2>
+
+    <div>
+      <div style="font-size:9px;letter-spacing:3px;color:#444;margin-bottom:8px;">TEMA:</div>
+      <div class="theme-row" id="themeRow"></div>
+    </div>
+
+    <div class="tab-row">
+      <button class="tab-btn" id="tabSure" onclick="setTab('sure')">⏱ SÜRE</button>
+      <button class="tab-btn" id="tabTarih" onclick="setTab('tarih')">📅 TARİH</button>
+    </div>
+
+    <input class="modal-input" id="labelInput" placeholder="İSİM (opsiyonel)">
+
+    <!-- Süre paneli -->
+    <div id="surePanel">
+      <input class="modal-input" id="durationInput" placeholder="SÜRE: 25:00 veya 1:30:00" style="margin-bottom:10px;">
+      <div class="preset-row" id="presetRow"></div>
+    </div>
+
+    <!-- Tarih paneli -->
+    <div id="tarihPanel" style="display:none;flex-direction:column;gap:10px;">
+      <div id="calBox">
+        <div class="cal-header">
+          <button class="cal-nav" id="calPrev">‹</button>
+          <span class="cal-month-label" id="calMonthLabel"></span>
+          <button class="cal-nav" id="calNext">›</button>
+        </div>
+        <div class="cal-days-head" id="calDaysHead"></div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+      <div class="time-row">
+        <span class="time-label">SAAT:</span>
+        <input class="modal-input time-input" id="selHour" type="number" min="0" max="23" value="09">
+        <span class="time-sep" id="timeSep">:</span>
+        <input class="modal-input time-input" id="selMin" type="number" min="0" max="59" value="00">
+      </div>
+      <div id="selDateDisplay"></div>
+    </div>
+
+    <div class="modal-error" id="modalError" style="display:none;"></div>
+
+    <div class="modal-btns">
+      <button class="modal-add" id="modalAddBtn" onclick="handleAdd()">EKLE</button>
+      <button class="modal-cancel" onclick="closeModal()">İPTAL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "countdown-arcade-v1";
+const MONTHS_TR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+const DAYS_TR = ["Pz","Pt","Sa","Ça","Pe","Cu","Ct"];
+const THEMES = [
+  { name:"🔥", glow:"#ff4d00", grad:"linear-gradient(135deg,#ff4d00,#ff9500)", dark:"#1a0800", mid:"#2a1200" },
+  { name:"💜", glow:"#c061f7", grad:"linear-gradient(135deg,#9b59b6,#e056fd)", dark:"#0e0016", mid:"#1a0028" },
+  { name:"🩵", glow:"#00c8ff", grad:"linear-gradient(135deg,#0080ff,#00c8ff)", dark:"#00080f", mid:"#001525" },
+  { name:"💚", glow:"#00ff88", grad:"linear-gradient(135deg,#00ff88,#00e5cc)", dark:"#000f08", mid:"#001a10" },
+  { name:"🌸", glow:"#ff6eb4", grad:"linear-gradient(135deg,#ff6eb4,#ffb347)", dark:"#160009", mid:"#240015" },
+];
+const PRESETS = [{label:"5 dk",s:300},{label:"15 dk",s:900},{label:"25 dk",s:1500},{label:"1 sa",s:3600}];
+
+function pad(n) { return String(n).padStart(2,"0"); }
+function parseInput(val) {
+  const p = val.split(":").map(Number);
+  if (p.some(isNaN)) return null;
+  if (p.length===3) return p[0]*3600+p[1]*60+p[2];
+  if (p.length===2) return p[0]*60+p[1];
+  if (p.length===1) return p[0];
+  return null;
+}
+function calcRemaining(ts) {
+  const diff = Math.max(0, Math.floor((ts - Date.now()) / 1000));
+  return { d:Math.floor(diff/86400), h:Math.floor((diff%86400)/3600), m:Math.floor((diff%3600)/60), s:diff%60, total:diff };
+}
+function loadTimers() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } }
+function saveTimers() { localStorage.setItem(STORAGE_KEY, JSON.stringify(timers)); }
+
+let timers = loadTimers();
+// Runtime state per card (not persisted)
+const cardState = {}; // id -> { running, remaining, finished, urgent, interval }
+
+// ── RENDER ──────────────────────────────────────────────────
+function renderAll() {
+  const grid = document.getElementById("grid");
+  const empty = document.getElementById("empty");
+
+  // Remove cards that no longer exist
+  const existingIds = new Set(timers.map(t => String(t.id)));
+  [...grid.children].forEach(el => {
+    if (!existingIds.has(el.dataset.id)) el.remove();
+  });
+
+  if (timers.length === 0) {
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+
+  timers.forEach(t => {
+    if (!document.querySelector(`[data-id="${t.id}"]`)) {
+      const el = t.type === "date" ? createDateCard(t) : createTimerCard(t);
+      grid.appendChild(el);
+    }
+  });
+}
+
+// ── TIMER CARD ───────────────────────────────────────────────
+function createTimerCard(timer) {
+  const theme = THEMES[timer.themeIdx||0];
+  if (!cardState[timer.id]) {
+    cardState[timer.id] = { running:false, remaining:timer.seconds, finished:false, urgent:false, interval:null };
+  }
+  const state = cardState[timer.id];
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.dataset.id = String(timer.id);
+  card.style.cssText = `background:linear-gradient(160deg,${theme.mid},${theme.dark});border:1px solid ${theme.glow}33;box-shadow:0 0 20px ${theme.glow}22;--glow:${theme.glow};`;
+
+  card.innerHTML = `
+    <canvas class="particles" id="ptc-${timer.id}"></canvas>
+    <div class="card-grid-bg" style="--grid-img:linear-gradient(${theme.glow} 1px,transparent 1px),linear-gradient(90deg,${theme.glow} 1px,transparent 1px);"></div>
+    <div class="card-tag">⏱ SÜRE</div>
+    <button class="card-delete" title="Sil">✕</button>
+    <input class="card-label" value="${escHtml(timer.label)}" placeholder="İsim ver…" style="border-bottom-color:${theme.glow}44;">
+    <div class="digits" id="digits-${timer.id}"></div>
+    <div class="seg-bar" id="bar-${timer.id}"></div>
+    <div class="card-btns">
+      <button class="btn-start" id="startBtn-${timer.id}" style="background:${theme.grad};border:1px solid ${theme.glow};color:#000;"></button>
+      <button class="btn-reset" style="border-color:${theme.glow}33;color:${theme.glow};opacity:0.5;">↺</button>
+    </div>
+  `;
+
+  // Segmentler
+  const bar = card.querySelector(`#bar-${timer.id}`);
+  for(let i=0;i<20;i++){const s=document.createElement("div");s.className="seg";s.id=`seg-${timer.id}-${i}`;bar.appendChild(s);}
+
+  // Label güncelle
+  card.querySelector(".card-label").addEventListener("input", e => {
+    timer.label = e.target.value;
+    saveTimers();
+  });
+
+  // Sil
+  card.querySelector(".card-delete").addEventListener("click", () => {
+    clearInterval(state.interval);
+    delete cardState[timer.id];
+    timers = timers.filter(t => t.id !== timer.id);
+    saveTimers();
+    card.remove();
+    if(timers.length===0) document.getElementById("empty").style.display="block";
+  });
+
+  // Başlat/Durdur
+  const startBtn = card.querySelector(`#startBtn-${timer.id}`);
+  startBtn.addEventListener("click", () => {
+    if(state.finished || state.remaining===0) return;
+    state.running = !state.running;
+    if(state.running) {
+      state.interval = setInterval(() => tickTimer(timer.id, timer.seconds, theme), 1000);
+    } else {
+      clearInterval(state.interval);
+    }
+    updateStartBtn(timer.id, theme);
+  });
+
+  // Reset
+  card.querySelector(".btn-reset").addEventListener("click", () => {
+    clearInterval(state.interval);
+    state.running = false; state.remaining = timer.seconds; state.finished = false; state.urgent = false;
+    card.style.animation = "none";
+    updateTimerDisplay(timer.id, timer.seconds, timer.seconds, theme);
+    updateStartBtn(timer.id, theme);
+  });
+
+  updateTimerDisplay(timer.id, state.remaining, timer.seconds, theme);
+  updateStartBtn(timer.id, theme);
+
+  // Colon blink
+  startColonBlink(timer.id);
+
+  return card;
+}
+
+function tickTimer(id, totalSecs, theme) {
+  const state = cardState[id];
+  if (!state) return;
+  state.remaining--;
+  if(state.remaining <= 10) state.urgent = true;
+  if(state.remaining <= 0) {
+    state.remaining = 0;
+    clearInterval(state.interval);
+    state.running = false;
+    state.finished = true;
+    showFinished(id, "🎯", "TAMAM!", theme);
+    fireParticles(id, theme.glow);
+    return;
+  }
+  updateTimerDisplay(id, state.remaining, totalSecs, theme);
+  const card = document.querySelector(`[data-id="${id}"]`);
+  if(card) {
+    if(state.urgent) card.style.animation = "urgentPulse 0.4s ease infinite alternate";
+  }
+}
+
+function updateTimerDisplay(id, remaining, total, theme) {
+  const digitsEl = document.getElementById(`digits-${id}`);
+  if(!digitsEl) return;
+  const h=Math.floor(remaining/3600), m=Math.floor((remaining%3600)/60), s=remaining%60;
+  const bigSize = h>0 ? "small" : "big";
+  let html = "";
+  if(h>0) html += digitHTML(h,"sa",theme.glow,bigSize) + colonHTML(id+"h");
+  html += digitHTML(m,"dk",theme.glow,bigSize) + colonHTML(id+"m") + digitHTML(s,"sn",theme.glow,bigSize);
+  digitsEl.innerHTML = html;
+  startColonBlink(id);
+  // bar
+  const pct = total > 0 ? remaining/total : 0;
+  for(let i=0;i<20;i++){
+    const seg = document.getElementById(`seg-${id}-${i}`);
+    if(!seg) continue;
+    if(i/20 < pct){ seg.style.background=theme.glow; seg.style.boxShadow=`0 0 6px ${theme.glow}`; }
+    else { seg.style.background=theme.glow+"15"; seg.style.boxShadow="none"; }
+  }
+}
+
+function updateStartBtn(id, theme) {
+  const state = cardState[id];
+  const btn = document.getElementById(`startBtn-${id}`);
+  if(!btn||!state) return;
+  if(state.finished||state.remaining===0){ btn.style.opacity="0.3"; }
+  else { btn.style.opacity="1"; }
+  if(state.running){ btn.style.background="transparent"; btn.style.color=theme.glow; btn.textContent="⏸ DURDUR"; }
+  else { btn.style.background=theme.grad; btn.style.color="#000"; btn.textContent="▶ BAŞLAT"; }
+}
+
+function digitHTML(val, label, color, size) {
+  return `<div class="digit-block">
+    <div class="digit-num ${size}" style="color:${color};text-shadow:0 0 20px ${color},0 0 40px ${color}88;">${pad(val)}</div>
+    <div class="digit-label" style="color:${color};">${label}</div>
+  </div>`;
+}
+function colonHTML(uid) {
+  return `<div class="colon" id="colon-${uid}" style="color:var(--glow);">:</div>`;
+}
+
+const colonIntervals = {};
+function startColonBlink(id) {
+  ["h","m"].forEach(suffix => {
+    const cid = `colon-${id}${suffix}`;
+    if(colonIntervals[cid]) return;
+    colonIntervals[cid] = setInterval(() => {
+      const el = document.getElementById(cid);
+      if(!el){ clearInterval(colonIntervals[cid]); delete colonIntervals[cid]; return; }
+      el.style.opacity = el.style.opacity === "0.15" ? "1" : "0.15";
+    }, 500);
+  });
+}
+
+// ── DATE CARD ────────────────────────────────────────────────
+function createDateCard(timer) {
+  const theme = THEMES[timer.themeIdx||0];
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.dataset.id = String(timer.id);
+  card.style.cssText = `background:linear-gradient(160deg,${theme.mid},${theme.dark});border:1px solid ${theme.glow}33;box-shadow:0 0 20px ${theme.glow}22;--glow:${theme.glow};`;
+
+  card.innerHTML = `
+    <canvas class="particles" id="ptc-${timer.id}"></canvas>
+    <div class="card-grid-bg" style="--grid-img:linear-gradient(${theme.glow} 1px,transparent 1px),linear-gradient(90deg,${theme.glow} 1px,transparent 1px);"></div>
+    <div class="card-tag">📅 TARİH</div>
+    <button class="card-delete" title="Sil">✕</button>
+    <input class="card-label" value="${escHtml(timer.label)}" placeholder="İsim ver…" style="border-bottom-color:${theme.glow}44;">
+    <div id="dateDisplay-${timer.id}"></div>
+    <div class="seg-bar" id="bar-${timer.id}"></div>
+    <div class="date-str" id="dateStr-${timer.id}"></div>
+  `;
+
+  const bar = card.querySelector(`#bar-${timer.id}`);
+  for(let i=0;i<20;i++){const s=document.createElement("div");s.className="seg";s.id=`seg-${timer.id}-${i}`;bar.appendChild(s);}
+
+  const tDate = new Date(timer.targetTs);
+  card.querySelector(`#dateStr-${timer.id}`).textContent = `${tDate.getDate()} ${MONTHS_TR[tDate.getMonth()]} ${tDate.getFullYear()}`;
+
+  card.querySelector(".card-label").addEventListener("input", e => { timer.label = e.target.value; saveTimers(); });
+  card.querySelector(".card-delete").addEventListener("click", () => {
+    clearInterval(timer._interval);
+    timers = timers.filter(t => t.id !== timer.id);
+    saveTimers(); card.remove();
+    if(timers.length===0) document.getElementById("empty").style.display="block";
+  });
+
+  updateDateDisplay(timer, theme);
+  timer._interval = setInterval(() => updateDateDisplay(timer, theme), 1000);
+  startColonBlink(timer.id);
+
+  return card;
+}
+
+function updateDateDisplay(timer, theme) {
+  const rem = calcRemaining(timer.targetTs);
+  const totalSecs = Math.max(1, Math.floor((timer.targetTs - timer.createdAt)/1000));
+  const pct = rem.total / totalSecs;
+  const el = document.getElementById(`dateDisplay-${timer.id}`);
+  if(!el) { clearInterval(timer._interval); return; }
+
+  if(rem.total === 0) {
+    clearInterval(timer._interval);
+    showFinished(timer.id, "🎉", "GELDİ!", theme);
+    fireParticles(timer.id, theme.glow);
+    return;
+  }
+
+  let html = "";
+  if(rem.d > 0) html += `<div class="day-big"><div class="day-num" style="color:${theme.glow};text-shadow:0 0 30px ${theme.glow},0 0 60px ${theme.glow}44;">${String(rem.d).padStart(3,"0")}</div><div class="day-label" style="color:${theme.glow};">GÜN KALDI</div></div>`;
+  html += `<div class="digits">${digitHTML(rem.h,"sa",theme.glow,"small")}${colonHTML(timer.id+"h")}${digitHTML(rem.m,"dk",theme.glow,"small")}${colonHTML(timer.id+"m")}${digitHTML(rem.s,"sn",theme.glow,"small")}</div>`;
+  el.innerHTML = html;
+  startColonBlink(timer.id);
+
+  for(let i=0;i<20;i++){
+    const seg = document.getElementById(`seg-${timer.id}-${i}`);
+    if(!seg) continue;
+    if(i/20 < pct){ seg.style.background=theme.glow; seg.style.boxShadow=`0 0 6px ${theme.glow}`; }
+    else { seg.style.background=theme.glow+"15"; seg.style.boxShadow="none"; }
+  }
+}
+
+// ── SHARED ───────────────────────────────────────────────────
+function showFinished(id, icon, text, theme) {
+  const card = document.querySelector(`[data-id="${id}"]`);
+  if(!card) return;
+  const digEl = document.getElementById(`digits-${id}`) || document.getElementById(`dateDisplay-${id}`);
+  if(digEl) digEl.innerHTML = `<div class="finished-display"><span class="finished-icon">${icon}</span><div class="finished-text" style="color:${theme.glow};text-shadow:0 0 20px ${theme.glow};">${text}</div></div>`;
+  card.style.boxShadow = `0 0 50px ${theme.glow}99`;
+}
+
+function fireParticles(id, color) {
+  const canvas = document.getElementById(`ptc-${id}`);
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+  canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+  const W=canvas.width, H=canvas.height;
+  const particles = Array.from({length:60}, ()=>({
+    x:W/2, y:H/2, vx:(Math.random()-0.5)*14, vy:(Math.random()-0.5)*14,
+    r:Math.random()*4+1, alpha:1
+  }));
+  function tick() {
+    ctx.clearRect(0,0,W,H);
+    let alive=false;
+    particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=0.25; p.alpha-=0.016; p.r*=0.99;
+      if(p.alpha>0){alive=true; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+        ctx.fillStyle=color+Math.floor(p.alpha*255).toString(16).padStart(2,"0"); ctx.fill();}
+    });
+    if(alive) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function escHtml(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+// ── MODAL ────────────────────────────────────────────────────
+let currentTab = "sure";
+let currentThemeIdx = 0;
+let calYear, calMonth, selectedDateISO = null;
+
+function openModal() {
+  currentTab = "sure"; currentThemeIdx = 0; selectedDateISO = null;
+  document.getElementById("labelInput").value = "";
+  document.getElementById("durationInput").value = "";
+  document.getElementById("modalError").style.display="none";
+  document.getElementById("selHour").value = "09";
+  document.getElementById("selMin").value = "00";
+  document.getElementById("selDateDisplay").style.display="none";
+  const now = new Date(); calYear=now.getFullYear(); calMonth=now.getMonth();
+  buildThemeRow(); buildPresets(); renderCalendar(); applyTheme(); setTab("sure");
+  document.getElementById("modalOverlay").classList.add("open");
+}
+function closeModal() { document.getElementById("modalOverlay").classList.remove("open"); }
+
+document.getElementById("modalOverlay").addEventListener("click", e => { if(e.target===e.currentTarget) closeModal(); });
+document.getElementById("addBtn").addEventListener("click", openModal);
+
+function buildThemeRow() {
+  const row = document.getElementById("themeRow");
+  row.innerHTML = "";
+  THEMES.forEach((t,i)=>{
+    const btn=document.createElement("button");
+    btn.className="theme-btn"; btn.textContent=t.name;
+    btn.style.border=`1px solid ${i===currentThemeIdx?t.glow:"#222"}`;
+    btn.style.background=i===currentThemeIdx?t.grad:"transparent";
+    btn.style.boxShadow=i===currentThemeIdx?`0 0 10px ${t.glow}`:"none";
+    btn.addEventListener("click",()=>{ currentThemeIdx=i; buildThemeRow(); applyTheme(); });
+    row.appendChild(btn);
+  });
+}
+
+function buildPresets() {
+  const row = document.getElementById("presetRow");
+  row.innerHTML = "";
+  const t=THEMES[currentThemeIdx];
+  PRESETS.forEach(p=>{
+    const btn=document.createElement("button");
+    btn.className="preset-btn"; btn.textContent=p.label;
+    btn.style.border=`1px solid ${t.glow}44`; btn.style.color=t.glow+"99";
+    btn.addEventListener("mouseenter",()=>{ btn.style.borderColor=t.glow; btn.style.color=t.glow; btn.style.boxShadow=`0 0 8px ${t.glow}`; });
+    btn.addEventListener("mouseleave",()=>{ btn.style.borderColor=t.glow+"44"; btn.style.color=t.glow+"99"; btn.style.boxShadow="none"; });
+    btn.addEventListener("click",()=>{ document.getElementById("durationInput").value=pad(Math.floor(p.s/60))+":00"; });
+    row.appendChild(btn);
+  });
+}
+
+function applyTheme() {
+  const t=THEMES[currentThemeIdx];
+  const modal=document.getElementById("modal");
+  modal.style.border=`1px solid ${t.glow}44`;
+  modal.style.boxShadow=`0 0 40px ${t.glow}22,0 24px 64px #000c`;
+  document.getElementById("modalTitle").style.color=t.glow;
+  document.getElementById("modalTitle").style.textShadow=`0 0 10px ${t.glow}`;
+  document.getElementById("tabSure").style.color= currentTab==="sure"?"#000":t.glow+"66";
+  document.getElementById("tabSure").style.background= currentTab==="sure"?t.grad:"transparent";
+  document.getElementById("tabSure").style.boxShadow= currentTab==="sure"?`0 0 12px ${t.glow}`:"none";
+  document.getElementById("tabTarih").style.color= currentTab==="tarih"?"#000":t.glow+"66";
+  document.getElementById("tabTarih").style.background= currentTab==="tarih"?t.grad:"transparent";
+  document.getElementById("tabTarih").style.boxShadow= currentTab==="tarih"?`0 0 12px ${t.glow}`:"none";
+  ["labelInput","durationInput","selHour","selMin"].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.style.border=`1px solid ${t.glow}44`; el.style.color=t.glow;
+  });
+  document.getElementById("timeSep").style.color=t.glow;
+  document.getElementById("selDateDisplay").style.color=t.glow;
+  document.getElementById("selDateDisplay").style.textShadow=`0 0 8px ${t.glow}`;
+  document.getElementById("modalAddBtn").style.background=t.grad;
+  document.getElementById("modalAddBtn").style.boxShadow=`0 0 16px ${t.glow}66`;
+  document.getElementById("calBox").style.border=`1px solid ${t.glow}22`;
+  document.getElementById("calMonthLabel").style.color=t.glow;
+  document.querySelectorAll(".cal-nav").forEach(b=>{ b.style.color=t.glow+"77"; b.onmouseenter=()=>b.style.color=t.glow; b.onmouseleave=()=>b.style.color=t.glow+"77"; });
+  buildPresets();
+  renderCalendar();
+}
+
+function setTab(tab) {
+  currentTab = tab;
+  document.getElementById("surePanel").style.display = tab==="sure"?"block":"none";
+  document.getElementById("tarihPanel").style.display = tab==="tarih"?"flex":"none";
+  applyTheme();
+}
+
+// Takvim
+document.getElementById("calPrev").addEventListener("click",()=>{ if(calMonth===0){calMonth=11;calYear--;}else calMonth--; renderCalendar(); });
+document.getElementById("calNext").addEventListener("click",()=>{ if(calMonth===11){calMonth=0;calYear++;}else calMonth++; renderCalendar(); });
+
+function renderCalendar() {
+  const t = THEMES[currentThemeIdx];
+  const today = new Date();
+  const head = document.getElementById("calDaysHead");
+  head.innerHTML = "";
+  DAYS_TR.forEach(d=>{ const el=document.createElement("div"); el.className="cal-day-name"; el.textContent=d; el.style.color=t.glow+"44"; head.appendChild(el); });
+
+  document.getElementById("calMonthLabel").textContent = `${MONTHS_TR[calMonth]} ${calYear}`;
+
+  const grid = document.getElementById("calGrid");
+  grid.innerHTML = "";
+  const firstDay = new Date(calYear,calMonth,1).getDay();
+  const daysInMonth = new Date(calYear,calMonth+1,0).getDate();
+
+  for(let i=0;i<firstDay;i++){ const el=document.createElement("button"); el.className="cal-day empty"; grid.appendChild(el); }
+
+  for(let d=1;d<=daysInMonth;d++){
+    const el=document.createElement("button"); el.className="cal-day"; el.textContent=d;
+    const isToday=d===today.getDate()&&calMonth===today.getMonth()&&calYear===today.getFullYear();
+    const isPast=new Date(calYear,calMonth,d)<new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    const isSel=selectedDateISO&&d===new Date(selectedDateISO).getDate()&&calMonth===new Date(selectedDateISO).getMonth()&&calYear===new Date(selectedDateISO).getFullYear();
+    if(isPast){ el.className+=" past"; el.style.color="#252535"; }
+    else if(isSel){ el.style.background=t.glow; el.style.color="#000"; el.style.fontWeight="700"; el.style.boxShadow=`0 0 10px ${t.glow}`; }
+    else if(isToday){ el.style.background=t.glow+"22"; el.style.color=t.glow; el.style.fontWeight="700"; }
+    else { el.style.color="#777"; }
+    el.addEventListener("click",()=>{
+      selectedDateISO=new Date(calYear,calMonth,d).toISOString();
+      updateSelDateDisplay();
+      renderCalendar();
+    });
+    grid.appendChild(el);
+  }
+}
+
+function updateSelDateDisplay() {
+  const disp=document.getElementById("selDateDisplay");
+  const t=THEMES[currentThemeIdx];
+  if(!selectedDateISO){ disp.style.display="none"; return; }
+  const d=new Date(selectedDateISO);
+  const h=document.getElementById("selHour").value, m=document.getElementById("selMin").value;
+  disp.textContent=`${d.getDate()} ${MONTHS_TR[d.getMonth()]} ${d.getFullYear()} · ${pad(Number(h))}:${pad(Number(m))}`;
+  disp.style.display="block";
+}
+document.getElementById("selHour").addEventListener("input", updateSelDateDisplay);
+document.getElementById("selMin").addEventListener("input", updateSelDateDisplay);
+
+function handleAdd() {
+  const errEl=document.getElementById("modalError");
+  errEl.style.display="none";
+  const label=document.getElementById("labelInput").value.trim();
+  const t=THEMES[currentThemeIdx];
+
+  if(currentTab==="sure"){
+    const secs=parseInput(document.getElementById("durationInput").value.trim());
+    if(!secs||secs<=0){ errEl.textContent="⚠ Geçerli bir süre gir (ör: 25:00)"; errEl.style.display="block"; return; }
+    const timer={id:Date.now(),type:"duration",label:label||"Sayaç",seconds:secs,themeIdx:currentThemeIdx};
+    timers.push(timer); saveTimers();
+    const card=createTimerCard(timer); document.getElementById("grid").appendChild(card);
+  } else {
+    if(!selectedDateISO){ errEl.textContent="⚠ Bir tarih seç"; errEl.style.display="block"; return; }
+    const target=new Date(selectedDateISO);
+    const h=Math.min(23,Math.max(0,Number(document.getElementById("selHour").value)));
+    const m=Math.min(59,Math.max(0,Number(document.getElementById("selMin").value)));
+    target.setHours(h,m,0,0);
+    if(target<=new Date()){ errEl.textContent="⚠ Geçmiş tarih/saat seçildi"; errEl.style.display="block"; return; }
+    const timer={id:Date.now(),type:"date",label:label||"Etkinlik",targetTs:target.getTime(),createdAt:Date.now(),themeIdx:currentThemeIdx};
+    timers.push(timer); saveTimers();
+    const card=createDateCard(timer); document.getElementById("grid").appendChild(card);
+  }
+
+  document.getElementById("empty").style.display="none";
+  closeModal();
+}
+
+// İlk yükleme
+renderAll();
+</script>
+</body>
+</html>
